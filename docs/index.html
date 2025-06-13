@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Bot Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 800px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .login-form, .dashboard {
+            display: none;
+        }
+
+        .login-form.active, .dashboard.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="number"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        button {
+            background: #0088cc;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-right: 0.5rem;
+        }
+
+        button:hover {
+            background: #0077bb;
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        button.danger {
+            background: #dc3545;
+        }
+
+        .bot-list {
+            margin-top: 2rem;
+        }
+
+        .bot-item {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .bot-info h3 {
+            color: #333;
+            margin-bottom: 0.25rem;
+        }
+
+        .bot-info p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .bot-actions button {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .toolbar {
+            margin-bottom: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .code-block {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-top: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+        }
+
+        .instructions {
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .bot-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .bot-actions {
+                margin-top: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Telegram Bot Manager</h1>
+        
+        <!-- Login Form -->
+        <div class="login-form active" id="loginForm">
+            <div class="form-group">
+                <label for="password">Access Password</label>
+                <input type="password" id="password" placeholder="Enter password">
+            </div>
+            <button onclick="login()">Login</button>
+        </div>
+
+        <!-- Dashboard -->
+        <div class="dashboard" id="dashboard">
+            <div class="instructions">
+                <h3>📌 Quick Start Guide</h3>
+                <ol>
+                    <li>Add a new bot configuration</li>
+                    <li>Download the .env file</li>
+                    <li>Download the Python bot script</li>
+                    <li>Run: <code>pip install python-telegram-bot python-dotenv paramiko</code></li>
+                    <li>Run: <code>python telegram_terminal_bot_persistent.py</code></li>
+                </ol>
+            </div>
+
+            <div class="toolbar">
+                <button onclick="showAddBotModal()">➕ Add New Bot</button>
+                <button onclick="downloadBotScript()" class="secondary">🐍 Download Bot Script</button>
+                <button onclick="exportBots()" class="secondary">📤 Export Config</button>
+                <button onclick="importBots()" class="secondary">📥 Import Config</button>
+                <button onclick="logout()" class="danger">🚪 Logout</button>
+            </div>
+
+            <div class="bot-list" id="botList">
+                <!-- Bot items will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Add/Edit Bot Modal -->
+        <div class="modal" id="botModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="modalTitle">Add New Bot</h2>
+                    <button class="close-btn" onclick="closeModal()">&times;</button>
+                </div>
+                
+                <form id="botForm">
+                    <div class="form-group">
+                        <label for="projectName">Project Name</label>
+                        <input type="text" id="projectName" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sshHost">SSH Host (IP:Port)</label>
+                        <input type="text" id="sshHost" placeholder="192.168.1.100:22" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sshUsername">SSH Username</label>
+                        <input type="text" id="sshUsername" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sshPassword">SSH Password (Optional)</label>
+                        <input type="password" id="sshPassword">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="botToken">Telegram Bot Token</label>
+                        <input type="text" id="botToken" required>
+                        <small style="color: #666;">Get from @BotFather on Telegram</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="chatId">Telegram Chat ID</label>
+                        <input type="text" id="chatId" required>
+                        <small style="color: #666;">Your Telegram user ID</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="workingDir">Working Directory</label>
+                        <input type="text" id="workingDir" placeholder="/root/project" required>
+                    </div>
+                    
+                    <button type="submit">Save Bot</button>
+                    <button type="button" onclick="closeModal()" class="secondary">Cancel</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const STORAGE_KEY = 'telegram_bot_configs';
+        const PASSWORD_KEY = 'telegram_bot_password';
+        let currentEditId = null;
+
+        // Initialize
+        window.onload = function() {
+            checkAuth();
+        };
+
+        // Authentication
+        function checkAuth() {
+            const isLoggedIn = sessionStorage.getItem('authenticated') === 'true';
+            if (isLoggedIn) {
+                showDashboard();
+            }
+        }
+
+        function login() {
+            const password = document.getElementById('password').value;
+            const savedPassword = localStorage.getItem(PASSWORD_KEY);
+            
+            if (!savedPassword) {
+                // First time setup
+                if (confirm('First time setup. Use this password for future logins?')) {
+                    localStorage.setItem(PASSWORD_KEY, btoa(password));
+                    sessionStorage.setItem('authenticated', 'true');
+                    showDashboard();
+                }
+            } else if (btoa(password) === savedPassword) {
+                sessionStorage.setItem('authenticated', 'true');
+                showDashboard();
+            } else {
+                alert('Invalid password!');
+            }
+        }
+
+        function logout() {
+            sessionStorage.removeItem('authenticated');
+            document.getElementById('loginForm').classList.add('active');
+            document.getElementById('dashboard').classList.remove('active');
+            document.getElementById('password').value = '';
+        }
+
+        function showDashboard() {
+            document.getElementById('loginForm').classList.remove('active');
+            document.getElementById('dashboard').classList.add('active');
+            loadBots();
+        }
+
+        // Bot Management
+        function loadBots() {
+            const bots = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            const botList = document.getElementById('botList');
+            
+            if (bots.length === 0) {
+                botList.innerHTML = '<p style="text-align: center; color: #666;">No bots configured yet. Click "Add New Bot" to get started.</p>';
+                return;
+            }
+
+            botList.innerHTML = bots.map(bot => `
+                <div class="bot-item">
+                    <div class="bot-info">
+                        <h3>${bot.projectName}</h3>
+                        <p>SSH: ${bot.sshHost} | User: ${bot.sshUsername}</p>
+                        <p>Chat ID: ${bot.chatId}</p>
+                    </div>
+                    <div class="bot-actions">
+                        <button onclick="editBot('${bot.id}')">✏️ Edit</button>
+                        <button onclick="downloadConfig('${bot.id}')" class="secondary">📄 .env</button>
+                        <button onclick="deleteBot('${bot.id}')" class="danger">🗑️ Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showAddBotModal() {
+            currentEditId = null;
+            document.getElementById('modalTitle').textContent = 'Add New Bot';
+            document.getElementById('botForm').reset();
+            document.getElementById('botModal').classList.add('active');
+        }
+
+        function editBot(id) {
+            const bots = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            const bot = bots.find(b => b.id === id);
+            
+            if (bot) {
+                currentEditId = id;
+                document.getElementById('modalTitle').textContent = 'Edit Bot';
+                document.getElementById('projectName').value = bot.projectName;
+                document.getElementById('sshHost').value = bot.sshHost;
+                document.getElementById('sshUsername').value = bot.sshUsername;
+                document.getElementById('sshPassword').value = bot.sshPassword || '';
+                document.getElementById('botToken').value = bot.botToken;
+                document.getElementById('chatId').value = bot.chatId;
+                document.getElementById('workingDir').value = bot.workingDir;
+                document.getElementById('botModal').classList.add('active');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('botModal').classList.remove('active');
+            currentEditId = null;
+        }
+
+        // Form submission
+        document.getElementById('botForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const botData = {
+                id: currentEditId || Date.now().toString(),
+                projectName: document.getElementById('projectName').value,
+                sshHost: document.getElementById('sshHost').value,
+                sshUsername: document.getElementById('sshUsername').value,
+                sshPassword: document.getElementById('sshPassword').value,
+                botToken: document.getElementById('botToken').value,
+                chatId: document.getElementById('chatId').value,
+                workingDir: document.getElementById('workingDir').value,
+                createdAt: new Date().toISOString()
+            };
+
+            let bots = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            
+            if (currentEditId) {
+                bots = bots.map(bot => bot.id === currentEditId ? botData : bot);
+            } else {
+                bots.push(botData);
+            }
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(bots));
+            loadBots();
+            closeModal();
+        });
+
+        function deleteBot(id) {
+            if (confirm('Are you sure you want to delete this bot?')) {
+                let bots = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                bots = bots.filter(bot => bot.id !== id);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(bots));
+                loadBots();
+            }
+        }
+
+        function downloadConfig(id) {
+            const bots = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            const bot = bots.find(b => b.id === id);
+            
+            if (bot) {
+                const [host, port] = bot.sshHost.split(':');
+                const envContent = `# Telegram Bot Configuration
+TELEGRAM_BOT_TOKEN=${bot.botToken}
+TELEGRAM_CHAT_ID=${bot.chatId}
+
+# SSH Configuration
+SSH_HOST=${host}
+SSH_PORT=${port || '22'}
+SSH_USERNAME=${bot.sshUsername}
+SSH_PASSWORD=${bot.sshPassword}
+
+# Security
+ALLOWED_USERS=${bot.chatId}
+MAX_OUTPUT_LENGTH=4000
+
+# Project Settings
+WORKING_DIR=${bot.workingDir}
+
+# Claude Code Integration (Optional)
+CLAUDE_CODE_PATH=/usr/local/bin/claude`;
+
+                const blob = new Blob([envContent], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${bot.projectName.replace(/\s+/g, '_')}.env`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        function downloadBotScript() {
+            // This would normally fetch from GitHub
+            // For now, we'll show instructions
+            const instructions = `
+To download the bot script:
+
+1. Save the Python bot script from the repository
+2. Or use wget/curl:
+   wget https://raw.githubusercontent.com/YOUR_REPO/main/telegram_terminal_bot_persistent.py
+
+3. Install dependencies:
+   pip install python-telegram-bot python-dotenv paramiko
+
+4. Place your .env file in the same directory
+5. Run: python telegram_terminal_bot_persistent.py
+            `;
+            
+            alert(instructions);
+        }
+
+        function exportBots() {
+            const bots = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            const blob = new Blob([JSON.stringify(bots, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'telegram_bots_backup.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function importBots() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            const imported = JSON.parse(e.target.result);
+                            if (Array.isArray(imported)) {
+                                if (confirm('This will replace all existing bots. Continue?')) {
+                                    localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
+                                    loadBots();
+                                }
+                            } else {
+                                alert('Invalid file format!');
+                            }
+                        } catch (err) {
+                            alert('Error reading file: ' + err.message);
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        }
+
+        // Handle Enter key in password field
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                login();
+            }
+        });
+    </script>
+</body>
+</html>
