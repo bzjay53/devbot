@@ -22,66 +22,31 @@ class WebConfigLoader:
             return self.config_cache
         
         try:
-            # GitHub Pages용 CORS 우회 방법들 시도
-            methods = [
-                self._try_fetch_with_params,
-                self._try_fetch_jsonp,
-                self._try_fetch_direct
-            ]
+            # API에서 설정 가져오기
+            response = requests.get(
+                f"{self.web_url}/api.php",
+                params={"password": self.password},
+                timeout=10
+            )
             
-            for method in methods:
-                try:
-                    bots = method()
-                    if bots and len(bots) > 0:
-                        # 첫 번째 봇 설정 사용
-                        self.config_cache = bots[0]
-                        self.last_update = current_time
-                        print(f"✅ Web config loaded: {self.config_cache.get('projectName', 'Unknown')}")
-                        return self.config_cache
-                except Exception as e:
-                    print(f"⚠️ Method failed: {e}")
-                    continue
-            
-            print("⚠️ No bot configurations found on web")
-            return None
+            if response.status_code == 200:
+                bots = response.json()
+                if bots and len(bots) > 0:
+                    # 첫 번째 봇 설정 사용 (여러 봇이 있다면 ID로 선택 가능)
+                    self.config_cache = bots[0]
+                    self.last_update = current_time
+                    print(f"✅ Web config loaded: {self.config_cache.get('projectName', 'Unknown')}")
+                    return self.config_cache
+                else:
+                    print("⚠️ No bot configurations found on web")
+                    return None
+            else:
+                print(f"❌ Failed to load config from web: {response.status_code}")
+                return None
                 
         except Exception as e:
             print(f"❌ Error loading config from web: {e}")
             return None
-    
-    def _try_fetch_with_params(self):
-        """Netlify Functions API로 시도"""
-        response = requests.get(
-            f"{self.web_url}/.netlify/functions/bot-config",
-            params={"password": self.password},
-            timeout=10,
-            headers={'User-Agent': 'DevBot/1.0'}
-        )
-        if response.status_code == 200:
-            data = response.json()
-            # Supabase 응답 형식에서 config_data 추출
-            return [item.get('config_data', item) for item in data]
-        return None
-    
-    def _try_fetch_jsonp(self):
-        """JSONP 대체 방법 (사용하지 않음)"""
-        return None
-    
-    def _try_fetch_direct(self):
-        """GitHub Pages 대체 방법 (localhost에서만)"""
-        if 'localhost' in self.web_url or '127.0.0.1' in self.web_url:
-            try:
-                response = requests.get(
-                    f"{self.web_url}:8888/.netlify/functions/bot-config",
-                    params={"password": self.password},
-                    timeout=10
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    return [item.get('config_data', item) for item in data]
-            except:
-                pass
-        return None
     
     def get_env_vars(self) -> Dict[str, str]:
         """봇 설정을 환경변수 형태로 반환합니다."""
