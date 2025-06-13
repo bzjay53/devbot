@@ -1,0 +1,16 @@
+services:
+  telegram-bot:
+    build: .
+    container_name: devbot-telegram
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      - TZ=Asia/Seoul
+      - WEB_PASSWORD=${WEB_PASSWORD:-}
+    networks:
+      - devbot-network
+
+networks:
+  devbot-network:
+    driver: bridge

@@ -10,9 +10,60 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 import paramiko
 from io import StringIO
+from config_loader import load_web_config_as_env
 
-# Load environment variables
-load_dotenv()
+print("🤖 Starting Telegram Terminal Bot...")
+print("🌐 Loading configuration from web interface...")
+
+# 웹페이지에서 설정 로드 (필수)
+WEB_CONFIG_URL = 'https://bzjay53.github.io/devbot'
+
+# 사용자에게 웹 설정 안내
+def wait_for_web_config():
+    print("\n" + "="*50)
+    print("📋 SETUP REQUIRED")
+    print("="*50)
+    print("1. Open: https://bzjay53.github.io/devbot")
+    print("2. Login with your password") 
+    print("3. Add your bot configuration")
+    print("4. Set WEB_PASSWORD environment variable")
+    print("="*50)
+    
+    # 환경변수에서 패스워드 확인
+    password = os.getenv('WEB_PASSWORD', '').strip()
+    
+    if not password:
+        print("❌ WEB_PASSWORD environment variable not set!")
+        print("Please set it with: export WEB_PASSWORD='your_password'")
+        print("Or run with: WEB_PASSWORD='your_password' python telegram_terminal_bot_persistent.py")
+        return False
+    
+    try:
+        print(f"🔍 Checking configuration with environment password...")
+        
+        from config_loader import WebConfigLoader
+        loader = WebConfigLoader(WEB_CONFIG_URL, password)
+        
+        if loader.validate_config():
+            print(f"✅ Found valid configuration!")
+            return load_web_config_as_env(WEB_CONFIG_URL, password)
+        else:
+            print("❌ No valid bot configuration found!")
+            print("Please check:")
+            print("- Web password is correct")
+            print("- Bot configuration is saved on web")
+            print("- All required fields are filled")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+# 웹 설정이 준비될 때까지 대기
+if not wait_for_web_config():
+    print("❌ Failed to load configuration from web interface!")
+    print("Please check your web setup and try again.")
+    exit(1)
 
 # Configuration
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
