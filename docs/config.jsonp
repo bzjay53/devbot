@@ -1,0 +1,3 @@
+// JSONP endpoint for bot configuration
+// This file will be updated by the web interface
+window.botConfigCallback && window.botConfigCallback([]);

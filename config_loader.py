@@ -22,31 +22,70 @@ class WebConfigLoader:
             return self.config_cache
         
         try:
-            # API에서 설정 가져오기
-            response = requests.get(
-                f"{self.web_url}/api.php",
-                params={"password": self.password},
-                timeout=10
-            )
+            # GitHub Pages용 CORS 우회 방법들 시도
+            methods = [
+                self._try_fetch_with_params,
+                self._try_fetch_jsonp,
+                self._try_fetch_direct
+            ]
             
-            if response.status_code == 200:
-                bots = response.json()
-                if bots and len(bots) > 0:
-                    # 첫 번째 봇 설정 사용 (여러 봇이 있다면 ID로 선택 가능)
-                    self.config_cache = bots[0]
-                    self.last_update = current_time
-                    print(f"✅ Web config loaded: {self.config_cache.get('projectName', 'Unknown')}")
-                    return self.config_cache
-                else:
-                    print("⚠️ No bot configurations found on web")
-                    return None
-            else:
-                print(f"❌ Failed to load config from web: {response.status_code}")
-                return None
+            for method in methods:
+                try:
+                    bots = method()
+                    if bots and len(bots) > 0:
+                        # 첫 번째 봇 설정 사용
+                        self.config_cache = bots[0]
+                        self.last_update = current_time
+                        print(f"✅ Web config loaded: {self.config_cache.get('projectName', 'Unknown')}")
+                        return self.config_cache
+                except Exception as e:
+                    print(f"⚠️ Method failed: {e}")
+                    continue
+            
+            print("⚠️ No bot configurations found on web")
+            return None
                 
         except Exception as e:
             print(f"❌ Error loading config from web: {e}")
             return None
+    
+    def _try_fetch_with_params(self):
+        """URL 파라미터로 시도"""
+        response = requests.get(
+            f"{self.web_url}/config.json",
+            params={"password": self.password},
+            timeout=10
+        )
+        if response.status_code == 200:
+            return response.json()
+        return None
+    
+    def _try_fetch_jsonp(self):
+        """JSONP 방식으로 시도"""
+        response = requests.get(
+            f"{self.web_url}/config.jsonp",
+            timeout=10
+        )
+        if response.status_code == 200:
+            # JSONP 응답에서 JSON 추출
+            text = response.text
+            if 'window.botConfigCallback' in text:
+                # 간단한 파싱 (실제로는 더 안전한 방법 사용)
+                import json
+                import re
+                match = re.search(r'window\.botConfigCallback\s*&&\s*window\.botConfigCallback\s*\(\s*(\[.*?\])\s*\)', text)
+                if match:
+                    return json.loads(match.group(1))
+        return None
+    
+    def _try_fetch_direct(self):
+        """직접 요청 (CORS 허용된 경우)"""
+        response = requests.get(
+            f"{self.web_url}/api.js",
+            timeout=10
+        )
+        # 이 방법은 실제 구현에서는 더 복잡할 수 있음
+        return None
     
     def get_env_vars(self) -> Dict[str, str]:
         """봇 설정을 환경변수 형태로 반환합니다."""
