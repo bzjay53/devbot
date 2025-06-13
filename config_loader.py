@@ -50,41 +50,37 @@ class WebConfigLoader:
             return None
     
     def _try_fetch_with_params(self):
-        """URL 파라미터로 시도"""
+        """Netlify Functions API로 시도"""
         response = requests.get(
-            f"{self.web_url}/config.json",
+            f"{self.web_url}/.netlify/functions/bot-config",
             params={"password": self.password},
-            timeout=10
+            timeout=10,
+            headers={'User-Agent': 'DevBot/1.0'}
         )
         if response.status_code == 200:
-            return response.json()
+            data = response.json()
+            # Supabase 응답 형식에서 config_data 추출
+            return [item.get('config_data', item) for item in data]
         return None
     
     def _try_fetch_jsonp(self):
-        """JSONP 방식으로 시도"""
-        response = requests.get(
-            f"{self.web_url}/config.jsonp",
-            timeout=10
-        )
-        if response.status_code == 200:
-            # JSONP 응답에서 JSON 추출
-            text = response.text
-            if 'window.botConfigCallback' in text:
-                # 간단한 파싱 (실제로는 더 안전한 방법 사용)
-                import json
-                import re
-                match = re.search(r'window\.botConfigCallback\s*&&\s*window\.botConfigCallback\s*\(\s*(\[.*?\])\s*\)', text)
-                if match:
-                    return json.loads(match.group(1))
+        """JSONP 대체 방법 (사용하지 않음)"""
         return None
     
     def _try_fetch_direct(self):
-        """직접 요청 (CORS 허용된 경우)"""
-        response = requests.get(
-            f"{self.web_url}/api.js",
-            timeout=10
-        )
-        # 이 방법은 실제 구현에서는 더 복잡할 수 있음
+        """GitHub Pages 대체 방법 (localhost에서만)"""
+        if 'localhost' in self.web_url or '127.0.0.1' in self.web_url:
+            try:
+                response = requests.get(
+                    f"{self.web_url}:8888/.netlify/functions/bot-config",
+                    params={"password": self.password},
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return [item.get('config_data', item) for item in data]
+            except:
+                pass
         return None
     
     def get_env_vars(self) -> Dict[str, str]:

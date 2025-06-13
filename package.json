@@ -1,0 +1,17 @@
+{
+  "name": "devbot-manager",
+  "version": "1.0.0",
+  "description": "Telegram Bot Manager with Netlify Functions and Supabase",
+  "main": "index.js",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'Build complete'",
+    "deploy": "netlify deploy --prod"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}

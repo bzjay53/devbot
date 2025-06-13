@@ -290,9 +290,12 @@
         </div>
     </div>
 
-    <script src="./api.js"></script>
     <script>
         // Configuration
+        const API_BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:8888/.netlify/functions'
+            : '/.netlify/functions';
+        
         let currentEditId = null;
         let currentPassword = '';
 
@@ -311,33 +314,47 @@
             }
         }
 
-        function login() {
+        async function login() {
             const password = document.getElementById('password').value;
             
             try {
-                const result = window.devbotAPI.verifyPassword(password);
+                // Supabase API를 통해 기존 설정 확인
+                const response = await fetch(`${API_BASE_URL}/bot-config?password=${encodeURIComponent(password)}`);
                 
-                if (result === true) {
-                    // 기존 사용자 로그인 성공
+                if (response.ok) {
+                    const bots = await response.json();
+                    // 기존 사용자 또는 새 사용자
                     currentPassword = password;
                     sessionStorage.setItem('authenticated', 'true');
                     sessionStorage.setItem('current_password', password);
                     showDashboard();
-                } else if (result === null) {
-                    // 첫 사용자 - 비밀번호 설정
-                    if (confirm('First time setup. Use this password for future logins?')) {
-                        window.devbotAPI.setPassword(password);
-                        currentPassword = password;
-                        sessionStorage.setItem('authenticated', 'true');
-                        sessionStorage.setItem('current_password', password);
-                        showDashboard();
-                    }
+                } else if (response.status === 400) {
+                    alert('Invalid password format!');
                 } else {
-                    alert('Invalid password!');
+                    // 첫 사용자 - 비밀번호로 빈 설정 생성
+                    if (confirm('First time setup. Use this password for future logins?')) {
+                        const saveResponse = await fetch(`${API_BASE_URL}/bot-config`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                password: password,
+                                bots: []
+                            })
+                        });
+                        
+                        if (saveResponse.ok) {
+                            currentPassword = password;
+                            sessionStorage.setItem('authenticated', 'true');
+                            sessionStorage.setItem('current_password', password);
+                            showDashboard();
+                        } else {
+                            alert('Error setting up account!');
+                        }
+                    }
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                alert('Error during authentication!');
+                alert('Connection error! Please check your internet connection.');
             }
         }
 
@@ -357,17 +374,21 @@
         }
 
         // Bot Management
-        function loadBots() {
+        async function loadBots() {
             try {
-                const bots = window.devbotAPI.getBots(currentPassword);
+                const response = await fetch(`${API_BASE_URL}/bot-config?password=${encodeURIComponent(currentPassword)}`);
+                const bots = response.ok ? await response.json() : [];
+                
+                // config_data 필드에서 실제 봇 정보 추출
+                const botConfigs = bots.map(item => item.config_data || item);
                 const botList = document.getElementById('botList');
             
-                if (bots.length === 0) {
+                if (botConfigs.length === 0) {
                     botList.innerHTML = '<p style="text-align: center; color: #666;">No bots configured yet. Click "Add New Bot" to get started.</p>';
                     return;
                 }
 
-                botList.innerHTML = bots.map(bot => `
+                botList.innerHTML = botConfigs.map(bot => `
                     <div class="bot-item">
                         <div class="bot-info">
                             <h3>${bot.projectName}</h3>
@@ -394,10 +415,12 @@
             document.getElementById('botModal').classList.add('active');
         }
 
-        function editBot(id) {
+        async function editBot(id) {
             try {
-                const bots = window.devbotAPI.getBots(currentPassword);
-                const bot = bots.find(b => b.id === id);
+                const response = await fetch(`${API_BASE_URL}/bot-config?password=${encodeURIComponent(currentPassword)}`);
+                const bots = response.ok ? await response.json() : [];
+                const botConfigs = bots.map(item => item.config_data || item);
+                const bot = botConfigs.find(b => b.id === id);
                 
                 if (bot) {
                     currentEditId = id;
@@ -423,7 +446,7 @@
         }
 
         // Form submission
-        document.getElementById('botForm').addEventListener('submit', function(e) {
+        document.getElementById('botForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const botData = {
@@ -440,33 +463,60 @@
 
             try {
                 // 현재 봇 목록 가져오기
-                let bots = window.devbotAPI.getBots(currentPassword);
+                const response = await fetch(`${API_BASE_URL}/bot-config?password=${encodeURIComponent(currentPassword)}`);
+                const existingBots = response.ok ? await response.json() : [];
+                let botConfigs = existingBots.map(item => item.config_data || item);
                 
                 if (currentEditId) {
-                    bots = bots.map(bot => bot.id === currentEditId ? botData : bot);
+                    botConfigs = botConfigs.map(bot => bot.id === currentEditId ? botData : bot);
                 } else {
-                    bots.push(botData);
+                    botConfigs.push(botData);
                 }
 
-                // 저장
-                window.devbotAPI.saveBots(currentPassword, bots);
-                window.devbotAPI.updateJSONP(); // 봇이 읽을 수 있도록 업데이트
-                loadBots();
-                closeModal();
+                // Supabase에 저장
+                const saveResponse = await fetch(`${API_BASE_URL}/bot-config`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        password: currentPassword,
+                        bots: botConfigs
+                    })
+                });
+
+                if (saveResponse.ok) {
+                    loadBots();
+                    closeModal();
+                } else {
+                    alert('Failed to save bot configuration!');
+                }
             } catch (error) {
                 console.error('Save bot error:', error);
                 alert('Error saving bot configuration!');
             }
         });
 
-        function deleteBot(id) {
+        async function deleteBot(id) {
             if (confirm('Are you sure you want to delete this bot?')) {
                 try {
-                    let bots = window.devbotAPI.getBots(currentPassword);
-                    bots = bots.filter(bot => bot.id !== id);
-                    window.devbotAPI.saveBots(currentPassword, bots);
-                    window.devbotAPI.updateJSONP(); // 봇이 읽을 수 있도록 업데이트
-                    loadBots();
+                    const response = await fetch(`${API_BASE_URL}/bot-config?password=${encodeURIComponent(currentPassword)}`);
+                    const existingBots = response.ok ? await response.json() : [];
+                    let botConfigs = existingBots.map(item => item.config_data || item);
+                    botConfigs = botConfigs.filter(bot => bot.id !== id);
+                    
+                    const saveResponse = await fetch(`${API_BASE_URL}/bot-config`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            password: currentPassword,
+                            bots: botConfigs
+                        })
+                    });
+
+                    if (saveResponse.ok) {
+                        loadBots();
+                    } else {
+                        alert('Failed to delete bot!');
+                    }
                 } catch (error) {
                     console.error('Delete bot error:', error);
                     alert('Error deleting bot!');
@@ -474,10 +524,12 @@
             }
         }
 
-        function downloadConfig(id) {
+        async function downloadConfig(id) {
             try {
-                const bots = window.devbotAPI.getBots(currentPassword);
-                const bot = bots.find(b => b.id === id);
+                const response = await fetch(`${API_BASE_URL}/bot-config?password=${encodeURIComponent(currentPassword)}`);
+                const bots = response.ok ? await response.json() : [];
+                const botConfigs = bots.map(item => item.config_data || item);
+                const bot = botConfigs.find(b => b.id === id);
                 
                 if (bot) {
                     const [host, port] = bot.sshHost.split(':');
